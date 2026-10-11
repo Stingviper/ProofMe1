@@ -509,3 +509,5 @@
     border-right: 0;
   }
 }
+.landing-text-link{background:none;border:none;color:inherit;cursor:pointer;font:inherit;padding:0;opacity:.85}
+.landing-text-link:hover{opacity:1}

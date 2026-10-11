@@ -1,12 +1,20 @@
-import { Navigate, Outlet, useLocation } from "react-router-dom";
+import { Navigate, Outlet } from "react-router-dom";
 import { useAuth } from "./AuthContext";
 
 export default function RequireAuth() {
-  const { user, loading, configured } = useAuth();
-  const location = useLocation();
+  const { user, loading } = useAuth();
 
-  if (loading) return <div className="auth-loading">Loading ProofMe…</div>;
-  if (!configured) return <Navigate to="/auth?mode=setup" replace state={{ from: location.pathname }} />;
-  if (!user) return <Navigate to="/auth" replace state={{ from: location.pathname }} />;
+  if (loading) {
+    return (
+      <div style={{ padding: 40, color: "#fff", fontFamily: "Inter, sans-serif" }}>
+        Loading…
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Navigate to="/auth" replace />;
+  }
+
   return <Outlet />;
 }

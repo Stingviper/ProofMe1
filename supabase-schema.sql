@@ -123,3 +123,28 @@ drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
 after insert on auth.users
 for each row execute procedure public.handle_new_user();
+
+-- Helpful indexes for dashboard / solved lookups
+create index if not exists idx_submissions_user_status on public.submissions (user_id, status);
+create index if not exists idx_submissions_user_slug on public.submissions (user_id, problem_slug);
+create index if not exists idx_skill_results_dsa_score on public.skill_results (skill_id, score desc);
+
+
+-- Solve time (ms) from when the user opened the problem until submit
+alter table public.submissions
+  add column if not exists solve_time_ms integer check (solve_time_ms is null or solve_time_ms >= 0);
+
+-- Public aggregate: accepted distinct problems for a user (no code exposure)
+create or replace function public.public_accepted_count(p_user_id uuid)
+returns integer
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select count(distinct problem_slug)::integer
+  from public.submissions
+  where user_id = p_user_id and status = 'Accepted';
+$$;
+
+grant execute on function public.public_accepted_count(uuid) to anon, authenticated;

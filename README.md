@@ -1,70 +1,109 @@
 # ProofMe
 
-ProofMe is a React-based technical skill verification platform.
+**Prove your skills. Don't just claim them.**
 
-## Product flow
+Full-stack skill verification for developers: assessments, a LeetCode-style DSA lab (Java + Python), live judging, hidden tests, leaderboards, submission history, and shareable public profiles.
 
-- Landing page
-- Supabase email/password authentication
-- Personal user dashboard
-- Practical Java, JavaScript and SQL assessments
-- DSA coding challenge interface with Monaco Editor
-- Real Java judging through the server-side Judge0 route
-- Account-specific skill results and coding submissions
-- Public shareable skill profile by username
-- 50-entry DSA practice library
+> Problem statements are original and inspired by classic interview patterns — not copied from LeetCode.
 
-## Authentication and database
+## Demo
 
-ProofMe uses Supabase Auth and PostgreSQL. Run `supabase-schema.sql` in the Supabase SQL Editor, then copy `.env.example` to `.env` and set:
+| Item | Value |
+|------|--------|
+| **Local** | `npm run dev` → http://localhost:5173 |
+| **Demo account** | Create any account via **Sign up**, or use your own email |
+| **Suggested demo path** | Sign up → DSA Lab → solve *Two Sum* / *Maximum Element* → Dashboard → Copy profile link |
+
+> Tip for reviewers: after one accepted submit, open **Leaderboard** and **Submissions** to see progress features.
+
+### Screenshots (add your own)
+
+Place images in `docs/` and link them here:
+
+1. Landing page  
+2. DSA lab (editor + pass)  
+3. Dashboard / topic progress  
+4. Public profile + leaderboard  
+
+```markdown
+![Landing](docs/landing.png)
+![DSA Lab](docs/dsa-lab.png)
+![Dashboard](docs/dashboard.png)
+![Profile](docs/profile.png)
+```
+
+## Feature matrix
+
+| Feature | Detail |
+|---------|--------|
+| Auth | Supabase email/password + auto profile |
+| Assessments | Java, JavaScript, SQL |
+| DSA Lab | 800 problems · 50 / topic · topic rail |
+| Languages | **Java** (Solution stubs) · **Python** (function style) |
+| Judge | Judge0 · 3 visible on Run · 15+ hidden on Submit · rate limited |
+| Progress | Solved checkmarks · topic bars · solve time |
+| History | Full **Submissions** page with filters |
+| Leaderboard | Public DSA rankings |
+| Profiles | `/profile/:username` + copy link + solved count |
+| Theme | Dark / light toggle |
+| CI | GitHub Actions build on push |
+
+## Architecture
+
+```
+Browser (React + Vite)
+  ├─ Auth / Dashboard / Profiles / Leaderboard / Submissions
+  ├─ DSA Lab (Monaco)
+  └─ POST /api/judge  →  rate limit  →  wrap Solution  →  Judge0
+Supabase Postgres + RLS (profiles, skill_results, submissions)
+```
+
+## Quick start
+
+```bash
+npm install
+cp .env.example .env.local
+```
+
+Set:
 
 ```env
 VITE_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
-VITE_SUPABASE_ANON_KEY=YOUR_SUPABASE_PUBLISHABLE_OR_ANON_KEY
+VITE_SUPABASE_ANON_KEY=YOUR_ANON_KEY
+# optional
+# JUDGE0_URL=https://ce.judge0.com
 ```
 
-The browser key is a publishable/anon key, not a service-role key. Never place a service-role key in `VITE_*` variables or in the frontend.
+Run **all** of `supabase-schema.sql` in the Supabase SQL editor (includes `solve_time_ms` and `public_accepted_count`).
 
-Row Level Security is enabled in the included schema. Private submissions are restricted to their owner; public profiles and their skill scores are intentionally readable so share links work.
+```bash
+npm run dev
+```
 
-## DSA Library
+## Deploy on Vercel
 
-ProofMe includes exactly **50 executable DSA practice problems** with search, topic filters, difficulty filters and pagination.
+1. Push repo to GitHub  
+2. Import in Vercel  
+3. Environment variables: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`  
+4. Supabase Auth → add production URL to Site URL + Redirect URLs  
+5. Optional: `JUDGE0_URL`  
 
-Every problem has:
-- A concrete problem statement
-- A Java starter program
-- Three visible test cases
-- Twelve total judge test cases
-- Server-side hidden tests for Submit
-- Automatic Accepted/Wrong Answer/Compilation Error reporting
+`vercel.json` already rewrites SPA routes and `/api/*`.
 
-The DSA library covers Arrays, Strings, Linked Lists, Stack, Queue, Binary Search, Trees, Graphs, Heap, Dynamic Programming, Greedy, Backtracking, Bit Manipulation, Math, Sorting and Advanced DSA.
+## CI
 
-`Run Code` executes the three visible tests. `Submit` executes all twelve tests stored on the server. Hidden tests are not shipped to the browser. Accepted submissions are saved to the signed-in user's Supabase account and update the DSA skill score.
+GitHub Actions (`.github/workflows/ci.yml`) runs `npm run build` on push/PR.
 
-The Java judge uses a LeetCode-style method contract. Each problem provides a `class Solution` starter with a required method signature. Users implement only that method; they do not write `main`, `Scanner`, or standard-input parsing. ProofMe generates a private server-side harness for each problem, calls the method with each test case, and compares the returned value with the expected answer.
+## Resume blurb
 
-## Deployment
+> **ProofMe** — Full-stack skill verification (React, Supabase, Judge0). LeetCode-style DSA lab with Java/Python judging, hidden tests, rate-limited judge API, leaderboards, submission history, and public verified profiles.
 
-Recommended deployment:
+## Security notes
 
-1. Create a Supabase project.
-2. Run `supabase-schema.sql`.
-3. Configure the frontend environment variables in Vercel.
-4. Deploy the repository to Vercel.
-5. In Supabase Authentication settings, add the deployed Vercel URL to the allowed redirect/site URLs.
-
-## Security
-
-Never put Judge0 authentication tokens, Supabase service-role keys, or other secrets in frontend `VITE_*` environment variables. The current demo uses the official public Judge0 CE endpoint through the server-side `/api/judge` route. For production use, host an authenticated Judge0 instance or use an appropriately secured provider.
-
-## Ownership
+- RLS on profiles, skill_results, submissions  
+- Public profiles readable by design  
+- Submissions private to owner  
+- Judge API rate-limited (30 req/min/IP, best-effort)  
+- Never put service-role keys in `VITE_*`  
 
 Copyright © 2026 Om Deorukhakar. All Rights Reserved.
-
-This project does not intentionally copy third-party application code, designs or assets. Third-party packages remain under their respective licenses.
-
-
-### DSA library note
-The DSA library contains 50 distinct, named executable problems. It intentionally does not present randomized duplicates such as “Array Sum 2”; users choose problems by meaningful names and can read the statement and description before opening the editor.

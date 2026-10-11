@@ -1,0 +1,31 @@
+
+.lb-page{min-height:100vh;background:radial-gradient(ellipse at 30% 0%,rgba(139,92,246,.12),transparent 45%),#08080d;color:#ececf1}
+.lb-nav{display:flex;align-items:center;justify-content:space-between;padding:16px 28px;border-bottom:1px solid rgba(255,255,255,.06)}
+.lb-back,.lb-link{display:inline-flex;align-items:center;gap:8px;background:transparent;border:1px solid rgba(255,255,255,.1);color:#cfcfd8;padding:8px 12px;border-radius:10px;cursor:pointer}
+.lb-logo{display:flex;align-items:center;gap:8px;font-weight:700;letter-spacing:-.2px}
+.lb-main{width:min(960px,calc(100% - 32px));margin:0 auto;padding:36px 0 64px}
+.lb-hero{margin-bottom:28px}
+.lb-eyebrow{font-size:11px;font-weight:800;letter-spacing:1.4px;color:#a78bfa}
+.lb-hero h1{margin:10px 0;font-size:clamp(28px,4vw,40px);letter-spacing:-1px}
+.lb-hero p{color:#9c9ca8;max-width:560px;line-height:1.6}
+.lb-state{padding:28px;border:1px dashed rgba(255,255,255,.12);border-radius:14px;color:#9c9ca8;display:flex;align-items:center;gap:10px}
+.lb-error{border-color:rgba(239,141,154,.35);color:#ef8d9a}
+.spin{animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.lb-table-wrap{border:1px solid rgba(255,255,255,.08);border-radius:16px;overflow:hidden;background:rgba(255,255,255,.02)}
+.lb-table{width:100%;border-collapse:collapse}
+.lb-table th{text-align:left;font-size:11px;letter-spacing:1px;color:#8f8fa3;padding:14px 16px;border-bottom:1px solid rgba(255,255,255,.06)}
+.lb-table td{padding:16px;border-bottom:1px solid rgba(255,255,255,.05);vertical-align:middle}
+.lb-table tr:last-child td{border-bottom:none}
+.lb-table tr.podium{background:rgba(139,92,246,.06)}
+.lb-table td strong{display:block}
+.lb-table td span{color:#8f8fa3;font-size:12px}
+.lb-table td em{font-style:normal;font-weight:800;font-size:18px;color:#c4b5fd}
+.rank-gold{color:#f5c542}
+.rank-silver{color:#c0c0c8}
+.rank-bronze{color:#cd7f32}
+.rank-num{color:#8f8fa3;font-weight:700}
+.lb-profile-btn{display:inline-flex;align-items:center;gap:6px;background:rgba(139,92,246,.12);border:1px solid rgba(139,92,246,.3);color:#ddd6fe;padding:7px 10px;border-radius:8px;cursor:pointer;font-size:12px}
+@media(max-width:700px){
+  .lb-table th:nth-child(4),.lb-table td:nth-child(4){display:none}
+}

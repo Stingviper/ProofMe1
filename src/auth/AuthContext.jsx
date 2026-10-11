@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { supabase } from "../lib/supabase";
+import { supabase, isSupabaseConfigured } from "../lib/supabase";
 
 const AuthContext = createContext(null);
 
@@ -13,12 +13,28 @@ export function AuthProvider({ children }) {
       setProfile(null);
       return;
     }
-    const { data } = await supabase.from("profiles").select("id,name,username").eq("id", user.id).maybeSingle();
-    setProfile(data || {
-      id: user.id,
-      name: user.user_metadata?.name || user.email?.split("@")[0] || "ProofMe User",
-      username: user.user_metadata?.username || user.id.slice(0, 8),
-    });
+    try {
+      const { data } = await supabase
+        .from("profiles")
+        .select("id, name, username")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      setProfile(
+        data || {
+          id: user.id,
+          name: user.user_metadata?.name || user.email?.split("@")[0] || "ProofMe User",
+          username: user.user_metadata?.username || user.id.slice(0, 8),
+        }
+      );
+    } catch (err) {
+      console.error("[ProofMe] loadProfile:", err);
+      setProfile({
+        id: user.id,
+        name: user.user_metadata?.name || "ProofMe User",
+        username: user.user_metadata?.username || user.id.slice(0, 8),
+      });
+    }
   };
 
   useEffect(() => {
@@ -28,6 +44,7 @@ export function AuthProvider({ children }) {
     }
 
     let mounted = true;
+
     supabase.auth.getSession().then(({ data }) => {
       if (!mounted) return;
       setSession(data.session);
@@ -35,12 +52,14 @@ export function AuthProvider({ children }) {
       setLoading(false);
     });
 
-    const { data: listener } = supabase.auth.onAuthStateChange(async (_event, nextSession) => {
-      if (!mounted) return;
-      setSession(nextSession);
-      await loadProfile(nextSession?.user);
-      setLoading(false);
-    });
+    const { data: listener } = supabase.auth.onAuthStateChange(
+      async (_event, nextSession) => {
+        if (!mounted) return;
+        setSession(nextSession);
+        await loadProfile(nextSession?.user);
+        setLoading(false);
+      }
+    );
 
     return () => {
       mounted = false;
@@ -48,19 +67,22 @@ export function AuthProvider({ children }) {
     };
   }, []);
 
-  const value = useMemo(() => ({
-    session,
-    user: session?.user || null,
-    profile,
-    loading,
-    configured: Boolean(supabase),
-    async signOut() {
-      if (supabase) await supabase.auth.signOut();
-    },
-    async refreshProfile() {
-      await loadProfile(session?.user);
-    },
-  }), [session, profile, loading]);
+  const value = useMemo(
+    () => ({
+      session,
+      user: session?.user || null,
+      profile,
+      loading,
+      configured: isSupabaseConfigured,
+      async signOut() {
+        if (supabase) await supabase.auth.signOut();
+      },
+      async refreshProfile() {
+        await loadProfile(session?.user);
+      },
+    }),
+    [session, profile, loading]
+  );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

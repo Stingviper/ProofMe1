@@ -10,6 +10,7 @@ export default function Result() {
   const [params] = useSearchParams();
   const score = Number(params.get("score") || 0);
   const correct = Number(params.get("correct") || 0);
+  const total = Number(params.get("total") || 30);
 
   const label = score >= 90 ? "Excellent Performance" : score >= 75 ? "Strong Performance" : score >= 60 ? "Good Foundation" : "Keep Practicing";
 
@@ -38,7 +39,7 @@ export default function Result() {
           <div className="result-summary">
             <span>PERFORMANCE</span>
             <h2>{label}</h2>
-            <p>You answered <strong>{correct}/10</strong> questions correctly.</p>
+            <p>You answered <strong>{correct}/{total}</strong> questions correctly.</p>
             <div className="result-verified"><CheckCircle2 size={16}/> Result recorded</div>
           </div>
         </section>
@@ -50,7 +51,7 @@ export default function Result() {
 
         <section className="result-proof">
           <div className="result-proof-icon"><Trophy size={23}/></div>
-          <div><span>YOUR PROOF</span><h3>Show your demonstrated skill.</h3><p>Your result is stored locally and can be displayed on your ProofMe profile.</p></div>
+          <div><span>YOUR PROOF</span><h3>Show your demonstrated skill.</h3><p>Your result is saved to your ProofMe account and can be shown on your public profile.</p></div>
           <button onClick={() => navigate("/profile")}>Public Profile <ArrowRight size={16}/></button>
         </section>
 

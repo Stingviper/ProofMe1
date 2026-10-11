@@ -1,0 +1,21 @@
+
+.sub-page{min-height:100vh;background:var(--bg, #08080d);color:var(--text, #ececf1)}
+.sub-nav{display:flex;justify-content:space-between;align-items:center;padding:14px 24px;border-bottom:1px solid var(--border, rgba(255,255,255,.08))}
+.sub-nav button{background:transparent;border:1px solid var(--border, rgba(255,255,255,.1));color:inherit;padding:8px 12px;border-radius:10px;cursor:pointer}
+.sub-main{width:min(1000px,calc(100% - 32px));margin:0 auto;padding:28px 0 64px}
+.sub-hero h1{margin:0 0 8px;letter-spacing:-.6px}
+.sub-hero p{color:var(--muted, #9c9ca8);margin:0 0 16px}
+.sub-filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.sub-filters button{background:rgba(255,255,255,.04);border:1px solid var(--border, rgba(255,255,255,.1));color:inherit;padding:7px 12px;border-radius:999px;cursor:pointer;font-size:12px}
+.sub-filters button.active{background:rgba(139,92,246,.2);border-color:rgba(139,92,246,.45)}
+.sub-state{padding:24px;border:1px dashed var(--border, rgba(255,255,255,.12));border-radius:12px;color:var(--muted,#9c9ca8);display:flex;gap:8px;align-items:center}
+.sub-state.err{color:#ef8d9a}
+.spin{animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.sub-table-wrap{margin-top:18px;border:1px solid var(--border, rgba(255,255,255,.08));border-radius:14px;overflow:auto}
+.sub-table{width:100%;border-collapse:collapse;font-size:13px}
+.sub-table th,.sub-table td{padding:12px 14px;text-align:left;border-bottom:1px solid var(--border, rgba(255,255,255,.06))}
+.sub-table th{font-size:11px;letter-spacing:.8px;color:var(--muted,#8f8fa3)}
+.sub-table .ok{color:#7dd3a8}
+.sub-table .bad{color:#ef8d9a}
+.solve-time{display:inline-flex;align-items:center;gap:4px}

@@ -1,222 +1,590 @@
-import TESTS from "./dsa-tests.js";
+/**
+ * ProofMe Java judge — compiles and runs user solutions locally via javac/java.
+ * Data-driven harness: works for every problem in dsaProblems.js via dsaContracts.js.
+ *
+ * Exports:
+ *   - default async handler(req, res)   — Vite proxy entry point
+ *   - wrapJavaSolution(code, kind)      — build a runnable Main.java harness
+ *   - buildStdin(tests)                 — convert testCases[].input into stdin
+ *   - evaluateOutputs(stdout, tests)    — compare actual vs expected
+ *
+ * Requires: JDK 17+ on PATH (`javac`, `java`).
+ */
+
+import { execFileSync, execSync } from "child_process";
+import fs from "fs";
+import os from "os";
+import path from "path";
 import { dsaProblems } from "../src/dsaProblems.js";
+import { dsaContracts } from "../src/dsaContracts.js";
 
-const JUDGE0_URL = "https://ce.judge0.com";
-const JAVA_LANGUAGE_ID = 62;
+/* ============================================================ */
+/* Support classes — always emitted                              */
+/* ============================================================ */
 
-const METHODS = {
-  sum: { name: "arraySum", args: ([a]) => `new int[]{${a.join(",")}}` },
-  max: { name: "maxElement", args: ([a]) => `new int[]{${a.join(",")}}` },
-  second_largest: { name: "secondLargest", args: ([a]) => `new int[]{${a.join(",")}}` },
-  count_even: { name: "countEven", args: ([a]) => `new int[]{${a.join(",")}}` },
-  count_target: { name: "countTarget", args: ([a, t]) => `new int[]{${a.join(",")}}, ${t}` },
-  reverse: { name: "reverseArray", args: ([a]) => `new int[]{${a.join(",")}}` },
-  move_zeroes: { name: "moveZeroes", args: ([a]) => `new int[]{${a.join(",")}}` },
-  rotate: { name: "rotate", args: ([a, k]) => `new int[]{${a.join(",")}}, ${k}` },
-  dedupe_sorted: { name: "removeDuplicates", args: ([a]) => `new int[]{${a.join(",")}}` },
-  missing: { name: "missingNumber", args: ([a]) => `new int[]{${a.join(",")}}` },
-  reverse_string: { name: "reverseString", args: ([s]) => quote(s) },
-  palindrome: { name: "isPalindrome", args: ([s]) => quote(s) },
-  vowels: { name: "countVowels", args: ([s]) => quote(s) },
-  word_count: { name: "countWords", args: ([a]) => `new String[]{${a.map(quote).join(",")}}` },
-  unique_chars: { name: "uniqueCharacters", args: ([s]) => quote(s) },
-  anagram: { name: "isAnagram", args: ([a,b]) => `${quote(a)}, ${quote(b)}` },
-  valid_brackets: { name: "isValid", args: ([s]) => quote(s) },
-  next_greater: { name: "nextGreater", args: ([a]) => `new int[]{${a.join(",")}}` },
-  remove_adjacent: { name: "removeAdjacentDuplicates", args: ([s]) => quote(s) },
-  lower_bound: { name: "lowerBound", args: ([a,t]) => `new int[]{${a.join(",")}}, ${t}` },
-  binary_search: { name: "search", args: ([a,t]) => `new int[]{${a.join(",")}}, ${t}` },
-  sort_asc: { name: "sortAscending", args: ([a]) => `new int[]{${a.join(",")}}` },
-  sort_desc: { name: "sortDescending", args: ([a]) => `new int[]{${a.join(",")}}` },
-  gcd: { name: "gcd", args: ([a,b]) => `${a}, ${b}` },
-  prime: { name: "isPrime", args: ([n]) => `${n}` },
-  fib: { name: "fibonacci", args: ([n]) => `${n}` },
-  digit_sum: { name: "digitSum", args: ([n]) => `${n}L` },
-  factorial: { name: "factorial", args: ([n]) => `${n}` },
-  power: { name: "power", args: ([b,e]) => `${b}L, ${e}` },
-  single_number: { name: "singleNumber", args: ([a]) => `new int[]{${a.join(",")}}` },
-  set_bits: { name: "countSetBits", args: ([n]) => `${n}` },
-  climb: { name: "climbStairs", args: ([n]) => `${n}` },
-  house_robber: { name: "houseRobber", args: ([a]) => `new int[]{${a.join(",")}}` },
-  min_cost_climb: { name: "minCostClimbingStairs", args: ([a]) => `new int[]{${a.join(",")}}` },
-  activity: { name: "activitySelection", args: ([s,e]) => `new int[]{${s.join(",")}}, new int[]{${e.join(",")}}` },
-  components: { name: "countComponents", args: ([n, edges]) => `${n}, new int[][]{${edges.map(edge => `{${edge[0]},${edge[1]}}`).join(",")}}` },
-  bfs_distance: { name: "shortestPath", args: ([n, edges, src, target]) => `${n}, new int[][]{${edges.map(edge => `{${edge[0]},${edge[1]}}`).join(",")}}, ${src}, ${target}` },
-  kth_largest: { name: "findKthLargest", args: ([a,k]) => `new int[]{${a.join(",")}}, ${k}` },
-  middle: { name: "middleElement", args: ([a]) => `new int[]{${a.join(",")}}` },
-  reverse_list: { name: "reverseList", args: ([a]) => `new int[]{${a.join(",")}}` },
-  max_subarray: { name: "maxSubArray", args: ([a]) => `new int[]{${a.join(",")}}` },
-  coin_change: { name: "coinChange", args: ([coins, amount]) => `new int[]{${coins.join(",")}}, ${amount}` },
-  lcs: { name: "longestCommonSubsequence", args: ([a,b]) => `${quote(a)}, ${quote(b)}` },
-  sliding_max: { name: "maxSlidingWindow", args: ([a,k]) => `new int[]{${a.join(",")}}, ${k}` },
-  queue_sim: { name: "simulateQueue", args: ([ops]) => `new int[][]{${ops.map(op => `{${op[0]}${op.length > 1 ? "," + op[1] : ""}}`).join(",")}}` },
-  tree_depth: { name: "maxDepth", args: ([tree]) => `new Integer[]{${tree.map(v => v === -1 ? "null" : v).join(",")}}` },
-  tree_level: { name: "levelOrder", args: ([tree]) => `new Integer[]{${tree.map(v => v === -1 ? "null" : v).join(",")}}` },
-  subset_count: { name: "subsetCount", args: ([n]) => `${n}` },
-  prefix_query: { name: "rangeSum", args: ([a,l,r]) => `new int[]{${a.join(",")}}, ${l}, ${r}` },
-  lis: { name: "lengthOfLIS", args: ([a]) => `new int[]{${a.join(",")}}` },
-};
-
-function quote(value) {
-  return JSON.stringify(String(value));
+const SUPPORT_CLASSES = `
+class ListNode {
+    int val;
+    ListNode next;
+    ListNode() {}
+    ListNode(int val) { this.val = val; }
+    ListNode(int val, ListNode next) { this.val = val; this.next = next; }
 }
 
-function tokens(input) {
-  return String(input).trim().split(/\s+/).filter(Boolean);
+class TreeNode {
+    int val;
+    TreeNode left;
+    TreeNode right;
+    TreeNode() {}
+    TreeNode(int val) { this.val = val; }
+    TreeNode(int val, TreeNode left, TreeNode right) {
+        this.val = val;
+        this.left = left;
+        this.right = right;
+    }
+}
+`;
+
+/* ============================================================ */
+/* Java helper methods                                           */
+/* ============================================================ */
+
+const HELPERS = `
+    static int[] __posArr = new int[]{0};
+
+    static String[] __tokens() throws Exception {
+        StringBuilder sb = new StringBuilder();
+        java.io.BufferedReader r = new java.io.BufferedReader(
+            new java.io.InputStreamReader(System.in));
+        String line;
+        while ((line = r.readLine()) != null) {
+            sb.append(line).append('\\n');
+        }
+        return sb.toString().trim().split("\\\\s+");
+    }
+
+    static String __tokNext(String[] tok, int[] pos) {
+        return tok[pos[0]++];
+    }
+
+    static int[] __readIntArrayN(String[] tok, int[] pos, int n) {
+        int[] a = new int[n];
+        for (int i = 0; i < n; i++) a[i] = Integer.parseInt(tok[pos[0]++]);
+        return a;
+    }
+
+    static int[] __readIntArray(String[] tok, int[] pos) {
+        int n = Integer.parseInt(tok[pos[0]++]);
+        return __readIntArrayN(tok, pos, n);
+    }
+
+    static int[] __readIntArrayMinusOne(String[] tok, int[] pos) {
+        int n = Integer.parseInt(tok[pos[0]++]) - 1;
+        return __readIntArrayN(tok, pos, n);
+    }
+
+    static String __readRestOfLine(String[] tok, int[] pos) {
+        StringBuilder sb = new StringBuilder();
+        while (pos[0] < tok.length) {
+            if (sb.length() > 0) sb.append(' ');
+            sb.append(tok[pos[0]++]);
+        }
+        return sb.toString();
+    }
+
+    static String __readPipePart(String[] tok, int[] pos, int part) {
+        String s = tok[pos[0]++];
+        String[] parts = s.split("\\\\|");
+        return part < parts.length ? parts[part] : "";
+    }
+
+    static String __readBracketString(String[] tok, int[] pos) {
+        String s = tok[pos[0]++];
+        return s.equals("EMPTY") ? "" : s;
+    }
+
+    static int[][] __readEdgesN(String[] tok, int[] pos, int m) {
+        int[][] edges = new int[m][2];
+        for (int i = 0; i < m; i++) {
+            edges[i][0] = Integer.parseInt(tok[pos[0]++]);
+            edges[i][1] = Integer.parseInt(tok[pos[0]++]);
+        }
+        return edges;
+    }
+
+    static int[][] __readEdges(String[] tok, int[] pos) {
+        int m = Integer.parseInt(tok[pos[0]++]);
+        return __readEdgesN(tok, pos, m);
+    }
+
+    static int[] __readPairsStarts(String[] tok, int[] pos) {
+        int n = Integer.parseInt(tok[pos[0]++]);
+        int[] a = new int[n];
+        for (int i = 0; i < n; i++) {
+            a[i] = Integer.parseInt(tok[pos[0]++]);
+            pos[0]++;
+        }
+        return a;
+    }
+
+    static int[] __readPairsEnds(String[] tok, int[] pos) {
+        int n = Integer.parseInt(tok[pos[0]++]);
+        int[] a = new int[n];
+        for (int i = 0; i < n; i++) {
+            pos[0]++;
+            a[i] = Integer.parseInt(tok[pos[0]++]);
+        }
+        return a;
+    }
+
+    static int __readCoinsAmount(String[] tok, int[] pos) {
+        return Integer.parseInt(tok[pos[0]++]);
+    }
+
+    static String __joinInts(int[] a) {
+        if (a == null) return "";
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < a.length; i++) {
+            if (i > 0) sb.append(' ');
+            sb.append(a[i]);
+        }
+        return sb.toString();
+    }
+
+    static ListNode __listFrom(int[] a) {
+        ListNode dummy = new ListNode(0);
+        ListNode cur = dummy;
+        for (int v : a) { cur.next = new ListNode(v); cur = cur.next; }
+        return dummy.next;
+    }
+
+    static String __listToString(ListNode head) {
+        StringBuilder sb = new StringBuilder();
+        ListNode cur = head;
+        boolean first = true;
+        while (cur != null) {
+            if (!first) sb.append(' ');
+            sb.append(cur.val);
+            first = false;
+            cur = cur.next;
+        }
+        return sb.toString();
+    }
+
+    static TreeNode __treeFrom(int[] a) {
+        if (a.length == 0) return null;
+        TreeNode[] nodes = new TreeNode[a.length];
+        for (int i = 0; i < a.length; i++) nodes[i] = new TreeNode(a[i]);
+        for (int i = 0; i < a.length; i++) {
+            int l = 2 * i + 1, r = 2 * i + 2;
+            if (l < a.length) nodes[i].left = nodes[l];
+            if (r < a.length) nodes[i].right = nodes[r];
+        }
+        return nodes[0];
+    }
+`;
+
+/* ============================================================ */
+/* Code analysis                                                 */
+/* ============================================================ */
+
+function splitUserCode(code) {
+    const lines = code.split(/\r?\n/);
+    const imports = [];
+    const bodyLines = [];
+    for (const line of lines) {
+        const trimmed = line.trim();
+        if (/^import\s+[\w.*]+\s*;$/.test(trimmed)) imports.push(trimmed);
+        else bodyLines.push(line);
+    }
+    return { imports, body: bodyLines.join("\n") };
 }
 
-function ints(values) {
-  return values.map(Number);
+/* ============================================================ */
+/* Wire → Java type + expression                                 */
+/* ============================================================ */
+
+function wireProducesType(w) {
+    const from = w.from;
+    if (from === "n_then_n_ints" || from === "bound_array" || from === "bound_array_minus_one") return "int[]";
+    if (from === "edges" || from === "bound_edges" || from === "bound_edges_src_tgt") return "int[][]";
+    if (from === "pairs") return "int[]";
+    if (from === "coins_amount") return "int[]";
+    if (from === "coins_amount_amount") return "int";
+    if (from === "rest_of_line" || from === "bracket_string" || from === "pipe") return "String";
+    return "int";
 }
 
-function parseCase(kind, input) {
-  const t = tokens(input);
-  switch (kind) {
-    case "sum": case "max": case "second_largest": case "count_even": case "reverse":
-    case "move_zeroes": case "dedupe_sorted": case "missing": case "next_greater":
-    case "sort_asc": case "sort_desc": case "single_number": case "house_robber":
-    case "min_cost_climb": case "middle": case "reverse_list":
-    case "max_subarray": case "lis": {
-      const n = Number(t[0]);
-      return [ints(t.slice(1, 1 + n))];
+/**
+ * Convert a wire entry into the Java expression that produces its value.
+ * Uses `bindings` map (bind-name → Java var name) for `bound` refs.
+ */
+function wireExpr(w, bindings) {
+    const t = wireProducesType(w);
+    const from = w.from;
+
+    switch (from) {
+        case "scalar":
+            if (t === "String") return "__tokNext(__tok, __posArr)";
+            if (t === "long") return "Long.parseLong(__tokNext(__tok, __posArr))";
+            if (t === "boolean") return "Boolean.parseBoolean(__tokNext(__tok, __posArr))";
+            return "Integer.parseInt(__tokNext(__tok, __posArr))";
+        case "n_then_n_ints":
+            return "__readIntArray(__tok, __posArr)";
+        case "bound_array":
+            return `__readIntArrayN(__tok, __posArr, ${bindings["n"] || "0"})`;
+        case "bound_array_minus_one":
+            return `__readIntArrayN(__tok, __posArr, (${bindings["n"] || "0"}) - 1)`;
+        case "bound":
+            return bindings[w.bind] || "0";
+        case "rest_of_line":
+            return "__readRestOfLine(__tok, __posArr)";
+        case "pipe":
+            return `__readPipePart(__tok, __posArr, ${w.part ?? 0})`;
+        case "bracket_string":
+            return "__readBracketString(__tok, __posArr)";
+        case "edges":
+            return "__readEdges(__tok, __posArr)";
+        case "bound_edges":
+            return `__readEdgesN(__tok, __posArr, ${bindings["m"] || "0"})`;
+        case "bound_edges_src_tgt":
+            return `__readEdgesN(__tok, __posArr, ${bindings["n_src_tgt"] || "0"})`;
+        case "pairs":
+            return w.part === "starts" ? "__readPairsStarts(__tok, __posArr)" : "__readPairsEnds(__tok, __posArr)";
+        case "coins_amount":
+            return "__readIntArray(__tok, __posArr)";
+        case "coins_amount_amount":
+            return bindings["amount"] || "0";
+        default:
+            return "0";
     }
-    case "count_target": {
-      const n = Number(t[0]); return [ints(t.slice(1, 1+n)), Number(t[1+n])];
-    }
-    case "rotate": {
-      const n = Number(t[0]); return [ints(t.slice(1, 1+n)), Number(t[1+n])];
-    }
-    case "reverse_string": case "palindrome": case "vowels": case "unique_chars":
-    case "valid_brackets": case "remove_adjacent": return [t[0] ?? ""];
-    case "word_count": { const n=Number(t[0]); return [t.slice(1,1+n)]; }
-    case "anagram": case "lcs": return [t[0] ?? "", t[1] ?? ""];
-    case "lower_bound": case "binary_search": case "prefix_query": {
-      const n=Number(t[0]); const a=ints(t.slice(1,1+n));
-      return kind === "prefix_query" ? [a,Number(t[1+n]),Number(t[2+n])] : [a,Number(t[1+n])];
-    }
-    case "gcd": return [Number(t[0]),Number(t[1])];
-    case "prime": case "fib": case "factorial": case "set_bits": case "climb": case "subset_count": return [Number(t[0])];
-    case "digit_sum": return [Number(t[0])];
-    case "power": return [Number(t[0]),Number(t[1])];
-    case "activity": { const n=Number(t[0]); return [ints(t.slice(1,1+n)),ints(t.slice(1+n,1+2*n))]; }
-    case "components": { const n=Number(t[0]),m=Number(t[1]); let edges=[]; let p=2; for(let i=0;i<m;i++) edges.push([Number(t[p++]),Number(t[p++])]); return [n,edges]; }
-    case "bfs_distance": { const n=Number(t[0]),m=Number(t[1]); let edges=[]; let p=2; for(let i=0;i<m;i++) edges.push([Number(t[p++]),Number(t[p++])]); return [n,edges,Number(t[p]),Number(t[p+1])]; }
-    case "kth_largest": { const n=Number(t[0]); return [ints(t.slice(1,1+n)),Number(t[1+n])]; }
-    case "coin_change": { const n=Number(t[0]); return [ints(t.slice(1,1+n)),Number(t[1+n])]; }
-    case "sliding_max": { const n=Number(t[0]); return [ints(t.slice(1,1+n)),Number(t[1+n])]; }
-    case "queue_sim": { const q=Number(t[0]); let ops=[]; let p=1; for(let i=0;i<q;i++){const type=Number(t[p++]); if(type===1) ops.push([1,Number(t[p++])]); else ops.push([2]);} return [ops]; }
-    case "tree_depth": case "tree_level": { const n=Number(t[0]); return [ints(t.slice(1,1+n))]; }
-    default: throw new Error(`Unsupported DSA problem kind: ${kind}`);
-  }
 }
 
-function renderJava() {
-  return `\nstatic String out(int[] a){ if(a==null)return "null"; StringBuilder b=new StringBuilder(); for(int i=0;i<a.length;i++){if(i>0)b.append(' ');b.append(a[i]);} return b.toString(); }
-static String out(long x){return String.valueOf(x);}
-static String out(int x){return String.valueOf(x);}
-static String out(boolean x){return x?"YES":"NO";}
-static String out(String x){return x==null?"null":x;}
+function resolveWire(contract) {
+    if (contract.wire && contract.wire.length > 0) return contract.wire;
+    return contract.params.map((p) => {
+        if (p.type === "int[]") return { from: "n_then_n_ints", to: "int[]" };
+        if (p.type === "int[][]") return { from: "edges", to: "int[][]" };
+        if (p.type === "String") return { from: "scalar", to: "String" };
+        if (p.type === "long") return { from: "scalar", to: "long" };
+        if (p.type === "boolean") return { from: "scalar", to: "boolean" };
+        if (p.type === "ListNode") return { from: "n_then_n_ints", to: "ListNode", adapter: "array_to_list" };
+        if (p.type === "TreeNode") return { from: "n_then_n_ints", to: "TreeNode", adapter: "array_to_tree" };
+        return { from: "scalar", to: "int" };
+    });
+}
+
+/* ============================================================ */
+/* Harness builder                                               */
+/* ============================================================ */
+
+export function wrapJavaSolution(userCode, kind) {
+    const contract = dsaContracts[kind];
+    if (!contract) throw new Error(`Unknown kind: ${kind}`);
+
+    const { imports: userImports, body: userBody } = splitUserCode(userCode);
+    const wire = resolveWire(contract);
+    const params = contract.params;
+    const ret = contract.returns;
+
+    // Emit every wire read. Track the var, its Java type, and its bind label.
+    const reads = [];
+    const wireVars = []; // { varName, type, bind, from }
+    const bindings = {}; // bind name → var name (last wins)
+
+    for (let i = 0; i < wire.length; i++) {
+        const w = wire[i];
+        const varName = `__w${i}`;
+        const t = wireProducesType(w);
+        let expr = wireExpr(w, bindings);
+
+        if (w.adapter === "array_to_list") expr = `__listFrom(${expr})`;
+        else if (w.adapter === "array_to_tree") expr = `__treeFrom(${expr})`;
+
+        reads.push(`        ${t} ${varName} = ${expr};`);
+        wireVars.push({ varName, type: t, bind: w.bind, from: w.from });
+        if (w.bind) bindings[w.bind] = varName;
+    }
+
+    // -------- Match params to wire vars --------
+    // Priority:
+    //   1. bind label matches param name
+    //   2. unused wire var with matching Java type
+    //   3. last N wire vars (legacy fallback)
+    const usedVarNames = new Set();
+    const argNames = new Array(params.length).fill(null);
+
+    // Pass 1: bind-name match
+    for (let i = 0; i < params.length; i++) {
+        const p = params[i];
+        if (bindings[p.name]) {
+            argNames[i] = bindings[p.name];
+            usedVarNames.add(bindings[p.name]);
+        }
+    }
+
+    // Pass 2: type match against unused vars
+    for (let i = 0; i < params.length; i++) {
+        if (argNames[i]) continue;
+        const p = params[i];
+        const match = wireVars.find(
+            (wv) => !usedVarNames.has(wv.varName) && wv.type === p.type
+        );
+        if (match) {
+            argNames[i] = match.varName;
+            usedVarNames.add(match.varName);
+        }
+    }
+
+    // Pass 3: last-N fallback
+    for (let i = 0; i < params.length; i++) {
+        if (argNames[i]) continue;
+        const tailStart = Math.max(0, wireVars.length - params.length);
+        const candidate = wireVars[tailStart + i];
+        argNames[i] = candidate ? candidate.varName : "0";
+    }
+
+    let printStmt;
+    if (ret === "int" || ret === "long") printStmt = "        System.out.println(__result);";
+    else if (ret === "boolean") printStmt = '        System.out.println(__result ? "YES" : "NO");';
+    else if (ret === "String") printStmt = '        System.out.println(__result == null ? "" : __result);';
+    else if (ret === "int[]") printStmt = "        System.out.println(__joinInts(__result));";
+    else if (ret === "ListNode") printStmt = "        System.out.println(__listToString(__result));";
+    else if (ret === "TreeNode") printStmt = '        System.out.println(__result == null ? "" : String.valueOf(__result.val));';
+    else printStmt = "        System.out.println(__result);";
+
+    const callStmt = ret === "void"
+        ? `        sol.${contract.method}(${argNames.join(", ")});`
+        : `        ${ret} __result = sol.${contract.method}(${argNames.join(", ")});`;
+
+    const importBlock = userImports.length ? userImports.join("\n") + "\n" : "";
+
+    return `${importBlock}import java.util.*;
+${SUPPORT_CLASSES}
+${userBody}
+
+class Main {
+${HELPERS}
+    public static void main(String[] args) throws Exception {
+        String[] __tok = __tokens();
+${reads.join("\n")}
+        Solution sol = new Solution();
+${callStmt}
+${printStmt}
+    }
+}
 `;
 }
 
-function buildRunner(sourceCode, slug, tests) {
-  const problemKind = tests.__kind;
-  const meta = METHODS[problemKind];
-  if (!meta) throw new Error(`No LeetCode-style harness for ${problemKind}.`);
+/* ============================================================ */
+/* Stdin builder                                                 */
+/* ============================================================ */
 
-  let solution = String(sourceCode || "")
-    .replace(/^\s*package\s+[^;]+;\s*/m, "")
-    .replace(/^\s*import\s+[^;]+;\s*$/gm, "")
-    .replace(/public\s+class\s+Solution\b/g, "class Solution");
-
-  if (!/\bclass\s+Solution\b/.test(solution)) {
-    throw new Error("Your code must contain a class Solution.");
-  }
-
-  const calls = tests.map((test) => {
-    const args = meta.args(parseCase(problemKind, test.input));
-    return `System.out.println(out(s.${meta.name}(${args})));`;
-  }).join("\n");
-
-  return `import java.util.*;\n\n${solution}\n\npublic class Main {${renderJava()}\npublic static void main(String[] args) throws Exception {\nSolution s = new Solution();\n${calls}\n}\n}`;
+export function buildStdin(tests) {
+    return tests.map((t) => t.input).join("\n") + "\n";
 }
 
-function normalize(value) {
-  return String(value ?? "").trim().replace(/\r/g, "").replace(/\s+/g, " ");
+/* ============================================================ */
+/* Output evaluation                                             */
+/* ============================================================ */
+
+function normalize(s) {
+    return String(s ?? "")
+        .replace(/\r\n/g, "\n")
+        .replace(/\r/g, "\n")
+        .trim()
+        .replace(/[ \t]+/g, " ");
 }
 
-async function judge(sourceCode, slug, mode) {
-  const allTests = TESTS[slug];
-  if (!allTests) return { error: "Problem not found in the server-side DSA library." };
+function answersEqual(a, b) {
+    const x = normalize(a);
+    const y = normalize(b);
+    if (x === y) return true;
+    const nx = Number(x), ny = Number(y);
+    if (!Number.isNaN(nx) && !Number.isNaN(ny) && x !== "" && y !== "") return nx === ny;
+    return false;
+}
 
-  const kind = slugToKind(slug);
-  const tests = mode === "run" ? allTests.slice(0, 3) : allTests;
-  const tagged = Object.assign([...tests], { __kind: kind });
+export function evaluateOutputs(stdout, tests) {
+    const lines = normalize(stdout).split("\n").filter((l) => l.length > 0);
+    const results = [];
+    for (let i = 0; i < tests.length; i++) {
+        const actual = lines[i] ?? "";
+        const expected = normalize(tests[i].expected);
+        const passed = answersEqual(actual, expected);
+        results.push({
+            index: i + 1,
+            passed,
+            input: tests[i].input,
+            expected: tests[i].expected,
+            actual: actual || "(no output)",
+            message: passed ? "" : `expected "${expected}", got "${actual}"`,
+        });
+    }
+    return results;
+}
 
-  let runner;
-  try { runner = buildRunner(sourceCode, slug, tagged); }
-  catch (error) { return { error: error.message }; }
+/* ============================================================ */
+/* Compile & run                                                 */
+/* ============================================================ */
 
-  const response = await fetch(`${JUDGE0_URL}/submissions/?base64_encoded=false&wait=true`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      language_id: JAVA_LANGUAGE_ID,
-      source_code: runner,
-      cpu_time_limit: 2,
-      wall_time_limit: 5,
-      memory_limit: 128000,
-    }),
-  });
+function compileAndRun(javaSource, stdin) {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "proofme-judge-"));
+    try {
+        fs.writeFileSync(path.join(dir, "Main.java"), javaSource, "utf8");
 
-  const submission = await response.json();
-  if (!response.ok) return { error: submission.error || "Judge0 rejected the submission." };
+        try {
+            execFileSync("javac", ["Main.java"], {
+                cwd: dir,
+                encoding: "utf8",
+                stdio: "pipe",
+                timeout: 20000,
+            });
+        } catch (e) {
+            return {
+                ok: false,
+                phase: "compile",
+                error: (e.stderr || e.message || "").toString(),
+                stdout: "",
+            };
+        }
 
-  const statusId = submission.status?.id;
-  const status = submission.status?.description || "Unknown";
-  if (statusId !== 3) {
-    const detail = submission.compile_output || submission.stderr || submission.message || "No additional error details.";
-    const isCompile = statusId === 6 || status === "Compilation Error";
-    return {
-      results: tests.map((test,index)=>({index:index+1,passed:false,expected:String(test.expected),actual:isCompile?"Compilation Error":"Not executed",message:detail})),
-      accepted:false,passedCount:0,totalCount:tests.length,
-      execution:{status,time:submission.time,memory:submission.memory,detail}
+        try {
+            const stdout = execFileSync("java", ["-cp", dir, "Main"], {
+                input: stdin,
+                encoding: "utf8",
+                timeout: 15000,
+            });
+            return { ok: true, phase: "run", error: "", stdout };
+        } catch (e) {
+            return {
+                ok: false,
+                phase: "runtime",
+                error: (e.stderr || e.message || "").toString(),
+                stdout: (e.stdout || "").toString(),
+            };
+        }
+    } finally {
+        try {
+            fs.rmSync(dir, { recursive: true, force: true });
+        } catch {}
+    }
+}
+
+function hasJavac() {
+    try {
+        execSync("javac -version", { stdio: "pipe" });
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+/* ============================================================ */
+/* HTTP handler                                                  */
+/* ============================================================ */
+
+export default async function handler(req, res) {
+    const send = (code, body) => {
+        if (!res.headersSent) {
+            res.statusCode = code;
+            res.setHeader("Content-Type", "application/json");
+            res.end(JSON.stringify(body));
+        }
     };
-  }
 
-  const lines = String(submission.stdout ?? "").trim().split(/\r?\n/).map(normalize);
-  const results = tests.map((test,index)=>({
-    index:index+1,
-    passed:lines[index] === normalize(test.expected),
-    expected:String(test.expected),
-    actual:lines[index] ?? ""
-  }));
-  const passedCount = results.filter(r=>r.passed).length;
+    if (req.method === "OPTIONS") return send(204, {});
+    if (req.method !== "POST") return send(405, { error: "Method not allowed" });
 
-  return {
-    results, accepted:passedCount===tests.length, passedCount, totalCount:tests.length,
-    execution:{status:passedCount===tests.length?"Accepted":"Wrong Answer",time:submission.time,memory:submission.memory,detail:submission.stderr||""}
-  };
+    const body = req.body || {};
+    const { sourceCode, problem: slug, mode = "run", language = "java" } = body;
+
+    if (!sourceCode) return send(400, { error: "Missing sourceCode." });
+    if (!slug) return send(400, { error: "Missing problem slug." });
+    if (language !== "java") return send(400, { error: "Only Java is supported by this judge." });
+
+    if (!hasJavac()) {
+        return send(500, {
+            error: "javac not found on PATH. Install a JDK (e.g. `brew install openjdk@17`).",
+            results: [],
+            execution: { status: "Judge unavailable" },
+            accepted: false,
+            passedCount: 0,
+            totalCount: 0,
+        });
+    }
+
+    const problem = dsaProblems.find((p) => p.slug === slug);
+    if (!problem) return send(404, { error: `Unknown problem: ${slug}` });
+
+    const contract = dsaContracts[problem.kind];
+    if (!contract) return send(500, { error: `No contract for kind "${problem.kind}".` });
+
+    const isSubmit = mode === "submit";
+    const visible = problem.testCases || [];
+    const hidden = isSubmit ? problem.hiddenTestCases || [] : [];
+    const allTests = [...visible, ...hidden];
+
+    const src = wrapJavaSolution(sourceCode, problem.kind);
+
+    const results = [];
+    let compileError = "";
+    let runtimeError = "";
+    let totalTimeMs = 0;
+
+    for (let i = 0; i < allTests.length; i++) {
+        const test = allTests[i];
+        const stdin = test.input + "\n";
+
+        const t0 = Date.now();
+        const run = compileAndRun(src, stdin);
+        totalTimeMs += Date.now() - t0;
+
+        if (!run.ok && run.phase === "compile") {
+            compileError = run.error;
+            break;
+        }
+        if (!run.ok && run.phase === "runtime") {
+            runtimeError = run.error;
+            results.push({
+                index: i + 1,
+                passed: false,
+                input: test.input,
+                expected: test.expected,
+                actual: run.stdout.trim() || "(no output)",
+                message: run.error.split("\n")[0] || "Runtime error",
+            });
+            break;
+        }
+
+        const [evaluated] = evaluateOutputs(run.stdout, [test]);
+        results.push(evaluated);
+    }
+
+    const passedCount = results.filter((r) => r.passed).length;
+    const totalCount = allTests.length;
+    const accepted = passedCount === totalCount && totalCount > 0;
+
+    const response = {
+        results,
+        accepted,
+        passedCount,
+        totalCount,
+        execution: {
+            status: compileError
+                ? "Compilation Error"
+                : runtimeError
+                ? "Runtime Error"
+                : accepted
+                ? "Accepted"
+                : "Wrong Answer",
+            time: (totalTimeMs / 1000).toFixed(3),
+            memory: null,
+        },
+    };
+
+    if (compileError) response.error = compileError;
+    else if (runtimeError) response.error = runtimeError;
+
+    return send(200, response);
 }
-
-function slugToKind(slug) {
-  const problem = dsaProblems.find((item) => item.slug === slug);
-  if (!problem?.kind) throw new Error("Unknown DSA problem.");
-  return problem.kind;
-}
-
-export async function handler(req,res){
-  res.setHeader("Access-Control-Allow-Origin","*");
-  res.setHeader("Access-Control-Allow-Methods","POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers","Content-Type");
-  if(req.method==="OPTIONS"){res.statusCode=204;res.end();return;}
-  if(req.method!=="POST"){res.statusCode=405;res.setHeader("Content-Type","application/json");res.end(JSON.stringify({error:"Method not allowed."}));return;}
-  try{
-    const body=req.body||{};
-    if(!body.sourceCode||!body.problem){res.statusCode=400;res.setHeader("Content-Type","application/json");res.end(JSON.stringify({error:"sourceCode and problem are required."}));return;}
-    const result=await judge(body.sourceCode,body.problem,body.mode==="run"?"run":"submit");
-    res.statusCode=result.error?400:200;res.setHeader("Content-Type","application/json");res.end(JSON.stringify(result));
-  }catch(error){res.statusCode=500;res.setHeader("Content-Type","application/json");res.end(JSON.stringify({error:error?.message||"Unexpected judge server error."}));}
-}
-export default handler;
-export { buildRunner, parseCase, METHODS, slugToKind };

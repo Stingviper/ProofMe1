@@ -158,7 +158,7 @@ export default function Assessment() {
     const score = Math.round((correct / questions.length) * 100);
     try {
       await saveSkillResult({ userId: user.id, skillId: skill, score, correct, total: questions.length });
-      navigate(`/result/${skill}?score=${score}&correct=${correct}`);
+      navigate(`/result/${skill}?score=${score}&correct=${correct}&total=${questions.length}`);
     } catch (saveError) {
       setError(saveError.message || "Unable to save your result. Please try again.");
     }
